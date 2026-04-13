@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Tracker</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f0f0f;
+      --surface: #1a1a1a;
+      --surface2: #242424;
+      --border: #2e2e2e;
+      --red: #ff0000;
+      --red-dim: #c00;
+      --green: #2ecc71;
+      --text: #e8e8e8;
+      --muted: #888;
+      --radius: 10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+      padding: 24px 16px 60px;
+    }
+
+    header {
+      max-width: 900px;
+      margin: 0 auto 32px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    header svg { flex-shrink: 0; }
+
+    header h1 {
+      font-size: 1.6rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    header h1 span { color: var(--red); }
+
+    .add-form {
+      max-width: 900px;
+      margin: 0 auto 36px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .add-form input {
+      flex: 1;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 16px;
+      color: var(--text);
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .add-form input:focus { border-color: var(--red); }
+    .add-form input::placeholder { color: var(--muted); }
+
+    .add-form button {
+      background: var(--red);
+      color: #fff;
+      border: none;
+      border-radius: var(--radius);
+      padding: 12px 22px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+
+    .add-form button:hover { background: var(--red-dim); }
+    .add-form button:disabled { background: #555; cursor: not-allowed; }
+
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: #333;
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 999px;
+      font-size: 0.88rem;
+      transition: transform 0.3s ease;
+      z-index: 999;
+      white-space: nowrap;
+    }
+    .toast.show { transform: translateX(-50%) translateY(0); }
+    .toast.error { background: #7a1010; }
+    .toast.success { background: #145a32; }
+
+    .tabs {
+      max-width: 900px;
+      margin: 0 auto 24px;
+      display: flex;
+      gap: 6px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 0;
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      color: var(--muted);
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 8px 18px 12px;
+      border-bottom: 2px solid transparent;
+      transition: color 0.2s, border-color 0.2s;
+    }
+
+    .tab.active {
+      color: var(--text);
+      border-bottom-color: var(--red);
+    }
+
+    .tab .count {
+      display: inline-block;
+      background: var(--surface2);
+      color: var(--muted);
+      font-size: 0.75rem;
+      border-radius: 999px;
+      padding: 1px 8px;
+      margin-left: 6px;
+    }
+
+    .tab.active .count { background: var(--red); color: #fff; }
+
+    .search-bar {
+      max-width: 900px;
+      margin: 0 auto 20px;
+    }
+
+    .search-bar input {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 10px 16px;
+      color: var(--text);
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    .search-bar input:focus { border-color: var(--border); }
+    .search-bar input::placeholder { color: var(--muted); }
+
+    .grid {
+      max-width: 900px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .empty {
+      max-width: 900px;
+      margin: 60px auto;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    .empty p:first-child { font-size: 2.5rem; margin-bottom: 10px; }
+    .empty p:last-child { font-size: 0.95rem; }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: border-color 0.2s, transform 0.15s;
+      position: relative;
+    }
+
+    .card:hover { border-color: #444; transform: translateY(-2px); }
+
+    .card.watched { opacity: 0.7; }
+
+    .thumb-wrap {
+      position: relative;
+      aspect-ratio: 16/9;
+      background: #111;
+      overflow: hidden;
+    }
+
+    .thumb-wrap img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .thumb-wrap .watched-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: var(--green);
+      color: #fff;
+      font-size: 0.7rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 999px;
+      letter-spacing: 0.5px;
+    }
+
+    .card-body {
+      padding: 12px 14px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .card-title {
+      font-size: 0.88rem;
+      font-weight: 600;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+
+    .card-title a {
+      color: inherit;
+      text-decoration: none;
+    }
+    .card-title a:hover { color: var(--red); }
+
+    .card-meta {
+      font-size: 0.75rem;
+      color: var(--muted);
+    }
+
+    .card-actions {
+      display: flex;
+      gap: 6px;
+      margin-top: auto;
+      padding-top: 4px;
+    }
+
+    .btn {
+      flex: 1;
+      border: none;
+      border-radius: 6px;
+      padding: 7px 10px;
+      font-size: 0.78rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s, opacity 0.2s;
+    }
+
+    .btn-watch {
+      background: var(--green);
+      color: #fff;
+    }
+    .btn-watch:hover { background: #27ae60; }
+
+    .btn-unwatch {
+      background: var(--surface2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .btn-unwatch:hover { background: #2e2e2e; color: var(--text); }
+
+    .btn-delete {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      flex: 0;
+      padding: 7px 10px;
+    }
+    .btn-delete:hover { background: #7a1010; color: #fff; border-color: transparent; }
+
+    .btn-open {
+      background: var(--red);
+      color: #fff;
+      flex: 0;
+      padding: 7px 10px;
+    }
+    .btn-open:hover { background: var(--red-dim); }
+
+    .loading-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      animation: pulse 1.5s infinite;
+    }
+
+    .loading-card .lc-thumb { aspect-ratio: 16/9; background: var(--surface2); }
+    .loading-card .lc-body { padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+    .loading-card .lc-line { height: 12px; border-radius: 4px; background: var(--surface2); }
+    .loading-card .lc-line.short { width: 55%; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
+    @media (max-width: 500px) {
+      .add-form { flex-direction: column; }
+      header h1 { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+    <rect width="36" height="36" rx="8" fill="#ff0000"/>
+    <polygon points="14,11 27,18 14,25" fill="white"/>
+  </svg>
+  <h1>YouTube <span>Tracker</span></h1>
+</header>
+
+<form class="add-form" id="addForm">
+  <input type="text" id="urlInput" placeholder="Paste a YouTube URL or video ID…" autocomplete="off" />
+  <button type="submit" id="addBtn">+ Add Video</button>
+</form>
+
+<div class="tabs">
+  <button class="tab active" data-tab="towatch">To Watch <span class="count" id="countToWatch">0</span></button>
+  <button class="tab" data-tab="watched">Watched <span class="count" id="countWatched">0</span></button>
+</div>
+
+<div class="search-bar">
+  <input type="text" id="searchInput" placeholder="Search videos…" />
+</div>
+
+<div class="grid" id="grid"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const STORAGE_KEY = 'yt_tracker_v1';
+  let videos = [];
+  let activeTab = 'towatch';
+  let searchQuery = '';
+
+  // ── Persistence ──────────────────────────────────────────────────────────────
+  function load() {
+    try { videos = JSON.parse(localStorage.getItem(STORAGE_KEY)) || []; }
+    catch { videos = []; }
+  }
+
+  function save() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
+  }
+
+  // ── YouTube helpers ───────────────────────────────────────────────────────────
+  function extractId(input) {
+    input = input.trim();
+    // Already a plain ID (11 chars, alphanumeric + - _)
+    if (/^[A-Za-z0-9_-]{11}$/.test(input)) return input;
+    try {
+      const url = new URL(input.startsWith('http') ? input : 'https://' + input);
+      if (url.hostname === 'youtu.be') return url.pathname.slice(1).split('?')[0];
+      if (url.searchParams.has('v')) return url.searchParams.get('v');
+      // shorts
+      const m = url.pathname.match(/\/(?:shorts|embed|v)\/([A-Za-z0-9_-]{11})/);
+      if (m) return m[1];
+    } catch {}
+    return null;
+  }
+
+  function thumbUrl(id) {
+    return `https://img.youtube.com/vi/${id}/mqdefault.jpg`;
+  }
+
+  async function fetchTitle(id) {
+    try {
+      const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.title || null;
+    } catch {
+      return null;
+    }
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────────
+  let toastTimer;
+  function showToast(msg, type = '') {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.className = 'toast show' + (type ? ' ' + type : '');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast'; }, 3000);
+  }
+
+  // ── Render ────────────────────────────────────────────────────────────────────
+  function formatDate(ts) {
+    return new Date(ts).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  }
+
+  function render() {
+    const grid = document.getElementById('grid');
+    const filtered = videos.filter(v => {
+      const matchTab = activeTab === 'towatch' ? !v.watched : v.watched;
+      const matchSearch = !searchQuery || v.title.toLowerCase().includes(searchQuery);
+      return matchTab && matchSearch;
+    });
+
+    document.getElementById('countToWatch').textContent = videos.filter(v => !v.watched).length;
+    document.getElementById('countWatched').textContent = videos.filter(v => v.watched).length;
+
+    if (filtered.length === 0) {
+      const label = activeTab === 'towatch' ? 'No videos to watch yet.' : 'No watched videos yet.';
+      const icon = activeTab === 'towatch' ? '📋' : '✅';
+      grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><p>${icon}</p><p>${label}</p></div>`;
+      return;
+    }
+
+    grid.innerHTML = filtered.map(v => `
+      <div class="card ${v.watched ? 'watched' : ''}" data-id="${v.id}">
+        <div class="thumb-wrap">
+          <img src="${thumbUrl(v.videoId)}" alt="${escHtml(v.title)}" loading="lazy" />
+          ${v.watched ? '<span class="watched-badge">WATCHED</span>' : ''}
+        </div>
+        <div class="card-body">
+          <div class="card-title">
+            <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener">${escHtml(v.title)}</a>
+          </div>
+          <div class="card-meta">Added ${formatDate(v.addedAt)}</div>
+          <div class="card-actions">
+            ${v.watched
+              ? `<button class="btn btn-unwatch" onclick="toggleWatched('${v.id}')">Mark Unwatched</button>`
+              : `<button class="btn btn-watch" onclick="toggleWatched('${v.id}')">Mark Watched</button>`}
+            <button class="btn btn-open" title="Open on YouTube" onclick="window.open('https://www.youtube.com/watch?v=${v.videoId}','_blank')">▶</button>
+            <button class="btn btn-delete" title="Delete" onclick="deleteVideo('${v.id}')">✕</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function escHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // ── Actions ───────────────────────────────────────────────────────────────────
+  function toggleWatched(id) {
+    const v = videos.find(v => v.id === id);
+    if (!v) return;
+    v.watched = !v.watched;
+    v.watchedAt = v.watched ? Date.now() : null;
+    save();
+    render();
+    showToast(v.watched ? 'Marked as watched!' : 'Moved back to watchlist.', 'success');
+  }
+
+  function deleteVideo(id) {
+    videos = videos.filter(v => v.id !== id);
+    save();
+    render();
+    showToast('Video removed.', '');
+  }
+
+  // ── Add video ─────────────────────────────────────────────────────────────────
+  async function addVideo(input) {
+    const videoId = extractId(input);
+    if (!videoId) {
+      showToast('Could not find a YouTube video ID in that URL.', 'error');
+      return;
+    }
+
+    if (videos.some(v => v.videoId === videoId)) {
+      showToast('That video is already in your list!', 'error');
+      return;
+    }
+
+    const btn = document.getElementById('addBtn');
+    btn.disabled = true;
+    btn.textContent = 'Fetching…';
+
+    // Show a placeholder card immediately
+    const tempId = 'temp_' + Date.now();
+    const grid = document.getElementById('grid');
+    if (activeTab === 'towatch') {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'loading-card';
+      placeholder.id = tempId;
+      placeholder.innerHTML = `<div class="lc-thumb"></div><div class="lc-body"><div class="lc-line"></div><div class="lc-line short"></div></div>`;
+      grid.prepend(placeholder);
+    }
+
+    const title = await fetchTitle(videoId) || `YouTube Video (${videoId})`;
+
+    const video = {
+      id: crypto.randomUUID(),
+      videoId,
+      title,
+      watched: false,
+      addedAt: Date.now(),
+      watchedAt: null,
+    };
+
+    videos.unshift(video);
+    save();
+
+    const placeholder = document.getElementById(tempId);
+    if (placeholder) placeholder.remove();
+
+    btn.disabled = false;
+    btn.textContent = '+ Add Video';
+    document.getElementById('urlInput').value = '';
+
+    render();
+    showToast('Video added!', 'success');
+  }
+
+  // ── Event listeners ───────────────────────────────────────────────────────────
+  document.getElementById('addForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const val = document.getElementById('urlInput').value.trim();
+    if (val) addVideo(val);
+  });
+
+  document.querySelectorAll('.tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      activeTab = tab.dataset.tab;
+      render();
+    });
+  });
+
+  document.getElementById('searchInput').addEventListener('input', e => {
+    searchQuery = e.target.value.trim().toLowerCase();
+    render();
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────────
+  load();
+  render();
+</script>
+</body>
+</html>
