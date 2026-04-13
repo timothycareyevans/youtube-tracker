@@ -1067,6 +1067,7 @@
       if (v.priority    === undefined) v.priority    = false;
       if (v.channelName === undefined) v.channelName = '';
       if (v.publishedAt === undefined) v.publishedAt = '';
+      if (v.viewCount   === undefined) v.viewCount   = '';
     });
   }
 
@@ -1218,6 +1219,21 @@
                 onclick="event.stopPropagation()"
               />
             </div>
+            <div class="channel-row" style="margin-top:-4px;">
+              <input
+                class="published-input"
+                type="text"
+                value="${escHtml(v.viewCount)}"
+                placeholder="Views"
+                title="Set view count"
+                data-id="${escHtml(v.id)}"
+                onchange="saveViewCount(this)"
+                onkeydown="if(event.key==='Enter')this.blur()"
+                draggable="false"
+                onclick="event.stopPropagation()"
+                style="width:100px;"
+              />
+            </div>
             <div class="card-meta">Added ${formatDate(v.addedAt)}${v.watchedAt ? ' · Watched ' + formatDate(v.watchedAt) : ''}</div>
             <div class="progress-wrap">
               <div class="progress-bar-bg">
@@ -1287,6 +1303,13 @@
     const v = videos.find(v => v.id === input.dataset.id);
     if (!v) return;
     v.channelName = input.value.trim();
+    save();
+  }
+
+  function saveViewCount(input) {
+    const v = videos.find(v => v.id === input.dataset.id);
+    if (!v) return;
+    v.viewCount = input.value.trim();
     save();
   }
 
@@ -1577,7 +1600,7 @@
 
     const info  = await fetchVideoInfo(videoId);
     const title = info?.title || `YouTube Video (${videoId})`;
-    const video = { id: crypto.randomUUID(), videoId, title, channelName: info?.channelName || '', publishedAt: '', watched: false, status: 'upcoming', addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0, priority: false };
+    const video = { id: crypto.randomUUID(), videoId, title, channelName: info?.channelName || '', publishedAt: '', viewCount: '', watched: false, status: 'upcoming', addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0, priority: false };
     videos.unshift(video);
     save();
 
@@ -1776,6 +1799,7 @@
             if (v.priority        === undefined) v.priority        = false;
             if (v.channelName     === undefined) v.channelName     = '';
             if (v.publishedAt     === undefined) v.publishedAt     = '';
+            if (v.viewCount       === undefined) v.viewCount       = '';
             videos.push(v); addedV++;
           }
         });
