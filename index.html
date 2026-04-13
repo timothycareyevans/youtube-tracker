@@ -1181,7 +1181,11 @@
   }
 
   function promoteIfStarted(v) {
-    if (v.status === 'upcoming' && v.progress > 0) v.status = 'inprogress';
+    if (v.progress >= 100 && v.status !== 'watched') {
+      setStatus(v.id, 'watched');
+    } else if (v.status === 'upcoming' && v.progress > 0) {
+      v.status = 'inprogress';
+    }
   }
 
   function saveWatched(input) {
