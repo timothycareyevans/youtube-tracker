@@ -1178,8 +1178,7 @@
     }
     list.innerHTML = categories.map(c => `
       <div class="cat-list-item">
-        <span class="cat-color-dot" style="background:${c.color}"></span>
-        <span>${escHtml(c.name)}</span>
+        <span style="color:${c.color};font-weight:700;">${escHtml(c.name)}</span>
         <button onclick="deleteCategory('${c.id}')">✕</button>
       </div>
     `).join('');
