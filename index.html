@@ -376,6 +376,30 @@
     .btn-flag:hover { background: var(--surface2); color: #f39c12; border-color: #f39c12; }
     .btn-flag.flagged { background: #2a1f00; color: #f39c12; border-color: #f39c12; }
 
+    .channel-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.73rem;
+      color: var(--muted);
+      flex-wrap: wrap;
+    }
+    .channel-name { font-weight: 600; color: #aaa; }
+    .published-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px dashed var(--border);
+      color: var(--muted);
+      font-size: 0.73rem;
+      font-family: inherit;
+      width: 86px;
+      outline: none;
+      padding: 1px 2px;
+      transition: border-color 0.2s;
+    }
+    .published-input:focus { border-bottom-color: var(--red); color: var(--text); }
+    .published-input::placeholder { color: #555; }
+
     .duration-row {
       display: flex;
       align-items: center;
@@ -926,7 +950,9 @@
         else if (v.progress > 0) v.status = 'inprogress';
         else                   v.status = 'upcoming';
       }
-      if (v.priority === undefined) v.priority = false;
+      if (v.priority    === undefined) v.priority    = false;
+      if (v.channelName === undefined) v.channelName = '';
+      if (v.publishedAt === undefined) v.publishedAt = '';
     });
   }
 
@@ -951,11 +977,12 @@
 
   function thumbUrl(id) { return `https://img.youtube.com/vi/${id}/mqdefault.jpg`; }
 
-  async function fetchTitle(id) {
+  async function fetchVideoInfo(id) {
     try {
       const res = await fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${id}&format=json`);
       if (!res.ok) return null;
-      return (await res.json()).title || null;
+      const data = await res.json();
+      return { title: data.title || null, channelName: data.author_name || null };
     } catch { return null; }
   }
 
@@ -1047,6 +1074,21 @@
             <div class="card-title">
               <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener">${escHtml(v.title)}</a>
             </div>
+            <div class="channel-row">
+              ${v.channelName ? `<span class="channel-name">${escHtml(v.channelName)}</span><span>·</span>` : ''}
+              <input
+                class="published-input"
+                type="text"
+                value="${escHtml(v.publishedAt)}"
+                placeholder="Published date"
+                title="Set published date"
+                data-id="${escHtml(v.id)}"
+                onchange="savePublishedAt(this)"
+                onkeydown="if(event.key==='Enter')this.blur()"
+                draggable="false"
+                onclick="event.stopPropagation()"
+              />
+            </div>
             <div class="card-meta">Added ${formatDate(v.addedAt)}${v.watchedAt ? ' · Watched ' + formatDate(v.watchedAt) : ''}</div>
             <div class="progress-wrap">
               <div class="progress-bar-bg">
@@ -1109,6 +1151,13 @@
     if (parts.length === 2) return parts[0] * 60 + parts[1];
     if (parts.length === 1) return parts[0];
     return null;
+  }
+
+  function savePublishedAt(input) {
+    const v = videos.find(v => v.id === input.dataset.id);
+    if (!v) return;
+    v.publishedAt = input.value.trim();
+    save();
   }
 
   function saveWatched(input) {
@@ -1313,8 +1362,9 @@
       grid.prepend(ph);
     }
 
-    const title = await fetchTitle(videoId) || `YouTube Video (${videoId})`;
-    const video = { id: crypto.randomUUID(), videoId, title, watched: false, status: 'upcoming', addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0, priority: false };
+    const info  = await fetchVideoInfo(videoId);
+    const title = info?.title || `YouTube Video (${videoId})`;
+    const video = { id: crypto.randomUUID(), videoId, title, channelName: info?.channelName || '', publishedAt: '', watched: false, status: 'upcoming', addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0, priority: false };
     videos.unshift(video);
     save();
 
@@ -1511,6 +1561,8 @@
             if (v.durationSeconds === undefined) v.durationSeconds = 0;
             if (v.status          === undefined) v.status          = v.watched ? 'watched' : (v.progress > 0 ? 'inprogress' : 'upcoming');
             if (v.priority        === undefined) v.priority        = false;
+            if (v.channelName     === undefined) v.channelName     = '';
+            if (v.publishedAt     === undefined) v.publishedAt     = '';
             videos.push(v); addedV++;
           }
         });
