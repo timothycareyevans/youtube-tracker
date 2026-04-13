@@ -289,6 +289,62 @@
       font-style: italic;
     }
 
+    .progress-wrap {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .progress-bar-bg {
+      flex: 1;
+      height: 5px;
+      background: var(--surface2);
+      border-radius: 999px;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.3s ease, background 0.3s ease;
+    }
+    .progress-label {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--muted);
+      min-width: 30px;
+      text-align: right;
+    }
+
+    /* Progress slider in modal */
+    .progress-slider-wrap { display: flex; flex-direction: column; gap: 6px; }
+    .progress-slider-row { display: flex; align-items: center; gap: 10px; }
+    input[type="range"] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 5px;
+      border-radius: 999px;
+      background: var(--surface3);
+      outline: none;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      background: var(--red);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { background: var(--red-dim); }
+    .range-val {
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--text);
+      min-width: 38px;
+      text-align: right;
+    }
+
     .card-actions {
       display: flex;
       gap: 6px;
@@ -534,6 +590,13 @@
       <h2>Edit Video</h2>
       <button class="modal-close" onclick="closeEditModal()">✕</button>
     </div>
+    <div class="progress-slider-wrap">
+      <label>Progress</label>
+      <div class="progress-slider-row">
+        <input type="range" id="editProgress" min="0" max="100" step="1" value="0" oninput="document.getElementById('editProgressVal').textContent=this.value+'%'" />
+        <span class="range-val" id="editProgressVal">0%</span>
+      </div>
+    </div>
     <div>
       <label>Notes</label>
       <textarea id="editNotes" placeholder="Add notes about this video…"></textarea>
@@ -587,10 +650,11 @@
   function load() {
     try { videos     = JSON.parse(localStorage.getItem(STORAGE_KEY))  || []; } catch { videos = []; }
     try { categories = JSON.parse(localStorage.getItem(CAT_STORAGE))  || []; } catch { categories = []; }
-    // Migrate v1 videos (no notes/category fields)
+    // Migrate older videos missing fields
     videos.forEach(v => {
       if (v.notes     === undefined) v.notes    = '';
       if (v.category  === undefined) v.category = '';
+      if (v.progress  === undefined) v.progress = v.watched ? 100 : 0;
     });
   }
 
@@ -645,6 +709,12 @@
   }
 
   function getCat(id) { return categories.find(c => c.id === id) || null; }
+
+  function progressColor(p) {
+    if (p >= 100) return 'var(--green)';
+    if (p >= 50)  return '#f39c12';
+    return 'var(--red)';
+  }
 
   // ── Category filter pills ─────────────────────────────────────────────────────
   function renderCatFilters() {
@@ -702,6 +772,12 @@
               <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener">${escHtml(v.title)}</a>
             </div>
             <div class="card-meta">Added ${formatDate(v.addedAt)}${v.watchedAt ? ' · Watched ' + formatDate(v.watchedAt) : ''}</div>
+            <div class="progress-wrap">
+              <div class="progress-bar-bg" title="Click to set progress" onclick="quickProgress(event,'${v.id}')">
+                <div class="progress-bar-fill" style="width:${v.progress||0}%;background:${progressColor(v.progress||0)}"></div>
+              </div>
+              <span class="progress-label">${v.progress||0}%</span>
+            </div>
             ${v.notes ? `<div class="card-notes">${escHtml(v.notes)}</div>` : ''}
             <div class="card-actions">
               ${v.watched
@@ -722,6 +798,7 @@
     if (!v) return;
     v.watched   = !v.watched;
     v.watchedAt = v.watched ? Date.now() : null;
+    if (v.watched) v.progress = 100;
     save(); render();
     showToast(v.watched ? 'Marked as watched!' : 'Moved back to watchlist.', 'success');
   }
@@ -738,6 +815,9 @@
     const v = videos.find(v => v.id === id);
     if (!v) return;
 
+    const prog = v.progress || 0;
+    document.getElementById('editProgress').value    = prog;
+    document.getElementById('editProgressVal').textContent = prog + '%';
     document.getElementById('editNotes').value = v.notes || '';
 
     const sel = document.getElementById('editCategory');
@@ -755,6 +835,7 @@
   function saveEdit() {
     const v = videos.find(v => v.id === editingId);
     if (!v) return;
+    v.progress = parseInt(document.getElementById('editProgress').value, 10);
     v.notes    = document.getElementById('editNotes').value.trim();
     v.category = document.getElementById('editCategory').value;
     save(); renderCatFilters(); render();
@@ -827,7 +908,7 @@
     }
 
     const title = await fetchTitle(videoId) || `YouTube Video (${videoId})`;
-    const video = { id: crypto.randomUUID(), videoId, title, watched: false, addedAt: Date.now(), watchedAt: null, notes: '', category: '' };
+    const video = { id: crypto.randomUUID(), videoId, title, watched: false, addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0 };
     videos.unshift(video);
     save();
 
@@ -837,6 +918,17 @@
 
     renderCatFilters(); render();
     showToast('Video added!', 'success');
+  }
+
+  // ── Quick progress (click bar) ────────────────────────────────────────────────
+  function quickProgress(e, id) {
+    const bar = e.currentTarget;
+    const pct = Math.round((e.offsetX / bar.offsetWidth) * 100);
+    const v = videos.find(v => v.id === id);
+    if (!v) return;
+    v.progress = pct;
+    if (pct === 100 && !v.watched) { v.watched = true; v.watchedAt = Date.now(); }
+    save(); render();
   }
 
   // ── Export ────────────────────────────────────────────────────────────────────
@@ -878,6 +970,7 @@
           if (!videos.some(x => x.videoId === v.videoId)) {
             if (v.notes    === undefined) v.notes    = '';
             if (v.category === undefined) v.category = '';
+            if (v.progress === undefined) v.progress = v.watched ? 100 : 0;
             videos.push(v); addedV++;
           }
         });
