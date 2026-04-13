@@ -908,6 +908,7 @@
               <button class="btn btn-open"   title="Watch here"            onclick="openWatchModal('${v.id}')">▶</button>
               <button class="btn btn-delete" title="Delete"                onclick="deleteVideo('${v.id}')">✕</button>
             </div>
+            ${cat ? `<div style="font-size:0.72rem;font-weight:700;color:${cat.color};margin-top:2px;">${escHtml(cat.name)}</div>` : ''}
           </div>
         </div>`;
     }).join('');
