@@ -60,6 +60,102 @@
     .header-btn.import:hover { background: #0e2a1a; }
     .header-btn.export { color: #58a6ff; border-color: #1a3050; }
     .header-btn.export:hover { background: #0d1f33; }
+    .header-btn.channels { color: #e87cff; border-color: #3a1a50; }
+    .header-btn.channels:hover { background: #200d30; }
+
+    /* ── Favorite Channels panel ── */
+    .channels-panel {
+      max-width: 960px;
+      margin: 0 auto 24px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      display: none;
+    }
+    .channels-panel.open { display: block; }
+    .channels-panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .channels-panel-header h3 { font-size: 0.9rem; font-weight: 700; color: #e87cff; }
+    .channels-add-row {
+      display: flex;
+      gap: 8px;
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .channels-add-row input {
+      flex: 1;
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 0.88rem;
+      font-family: inherit;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .channels-add-row input:focus { border-color: #e87cff; }
+    .channels-add-row input::placeholder { color: var(--muted); }
+    .btn-add-channel {
+      background: #e87cff;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    .btn-add-channel:hover { background: #c850e0; }
+    .channels-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 14px 18px;
+    }
+    .channel-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 14px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+      min-width: 160px;
+    }
+    .channel-card:hover { border-color: #e87cff; background: #1e1126; }
+    .channel-card.active { border-color: #e87cff; background: #1e1126; }
+    .channel-card-info { flex: 1; }
+    .channel-card-name { font-size: 0.85rem; font-weight: 700; color: #e87cff; }
+    .channel-card-count { font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .channel-card-remove {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.8rem;
+      padding: 2px 4px;
+      border-radius: 4px;
+      line-height: 1;
+      transition: color 0.15s;
+    }
+    .channel-card-remove:hover { color: var(--red); }
+    .channels-empty { padding: 14px 18px; font-size: 0.85rem; color: var(--muted); }
+
+    /* heart button on video card */
+    .btn-heart { background: transparent; color: var(--muted); border: 1px solid var(--border); flex: 0; padding: 7px 10px; transition: background 0.2s, color 0.2s, border-color 0.2s; }
+    .btn-heart:hover { color: #e87cff; border-color: #e87cff; }
+    .btn-heart.faved { color: #e87cff; border-color: #3a1a50; background: #1e1126; }
 
     /* ── Add form ── */
     .add-form {
@@ -826,6 +922,7 @@
   </svg>
   <h1>YouTube <span>Tracker</span></h1>
   <div class="header-actions">
+    <button class="header-btn channels" onclick="toggleChannelsPanel()">★ Channels</button>
     <button class="header-btn" onclick="openCatManager()">Categories</button>
     <button class="header-btn import" onclick="triggerImport()">Import</button>
     <button class="header-btn export" onclick="exportData()">Export</button>
@@ -836,6 +933,19 @@
   <input type="text" id="urlInput" placeholder="Paste a YouTube URL or video ID…" autocomplete="off" />
   <button type="submit" id="addBtn">+ Add Video</button>
 </form>
+
+<!-- Favorite Channels panel -->
+<div class="channels-panel" id="channelsPanel">
+  <div class="channels-panel-header">
+    <h3>★ Favorite Channels</h3>
+    <button class="modal-close" onclick="toggleChannelsPanel()">✕</button>
+  </div>
+  <div class="channels-add-row">
+    <input type="text" id="newChannelInput" placeholder="Add a channel name…" />
+    <button class="btn-add-channel" onclick="addFavoriteChannel()">+ Add</button>
+  </div>
+  <div id="channelsList"></div>
+</div>
 
 <div class="tabs">
   <button class="tab active" data-tab="upcoming">Upcoming <span class="count" id="countUpcoming">0</span></button>
@@ -925,18 +1035,22 @@
 <script>
   const STORAGE_KEY   = 'yt_tracker_v2';
   const CAT_STORAGE   = 'yt_tracker_cats_v1';
+  const CHAN_STORAGE  = 'yt_tracker_channels_v1';
 
-  let videos      = [];
-  let categories  = [];
-  let activeTab   = 'upcoming';
-  let searchQuery = '';
-  let activeCat   = '';   // '' = all
-  let editingId   = null;
+  let videos           = [];
+  let categories       = [];
+  let favChannels      = [];   // array of channel name strings
+  let activeTab        = 'upcoming';
+  let searchQuery      = '';
+  let activeCat        = '';
+  let activeChannel    = '';   // '' = all
+  let editingId        = null;
 
   // ── Persistence ──────────────────────────────────────────────────────────────
   function load() {
-    try { videos     = JSON.parse(localStorage.getItem(STORAGE_KEY))  || []; } catch { videos = []; }
-    try { categories = JSON.parse(localStorage.getItem(CAT_STORAGE))  || []; } catch { categories = []; }
+    try { videos      = JSON.parse(localStorage.getItem(STORAGE_KEY))  || []; } catch { videos = []; }
+    try { categories  = JSON.parse(localStorage.getItem(CAT_STORAGE))  || []; } catch { categories = []; }
+    try { favChannels = JSON.parse(localStorage.getItem(CHAN_STORAGE))  || []; } catch { favChannels = []; }
     // Migrate older videos missing fields
     videos.forEach(v => {
       if (v.notes           === undefined) v.notes           = '';
@@ -957,8 +1071,9 @@
   }
 
   function save() {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(videos));
+    localStorage.setItem(STORAGE_KEY,  JSON.stringify(videos));
     localStorage.setItem(CAT_STORAGE,  JSON.stringify(categories));
+    localStorage.setItem(CHAN_STORAGE,  JSON.stringify(favChannels));
   }
 
   // ── YouTube helpers ───────────────────────────────────────────────────────────
@@ -1043,8 +1158,9 @@
     const filtered = videos.filter(v => {
       const matchTab    = v.status === activeTab;
       const matchSearch = !searchQuery || v.title.toLowerCase().includes(searchQuery);
-      const matchCat    = !activeCat  || v.category === activeCat;
-      return matchTab && matchSearch && matchCat;
+      const matchCat     = !activeCat     || v.category    === activeCat;
+      const matchChannel = !activeChannel || v.channelName === activeChannel;
+      return matchTab && matchSearch && matchCat && matchChannel;
     });
 
     document.getElementById('countUpcoming').textContent   = videos.filter(v => v.status === 'upcoming').length;
@@ -1143,6 +1259,7 @@
                 : v.status === 'inprogress'
                   ? `<button class="btn btn-watch" onclick="setStatus('${v.id}','watched')">Mark Watched</button>`
                   : `<button class="btn btn-unwatch" onclick="setStatus('${v.id}','inprogress')">Unwatch</button>`}
+              <button class="btn btn-heart ${isChannelFaved(v.channelName) ? 'faved' : ''}" title="${isChannelFaved(v.channelName) ? 'Remove from Favorite Channels' : 'Add to Favorite Channels'}" onclick="toggleFaveFromCard('${escHtml(v.channelName)}')">♥</button>
               <button class="btn btn-flag ${v.priority ? 'flagged' : ''}" title="${v.priority ? 'Remove priority' : 'Flag as priority'}" onclick="togglePriority('${v.id}')">⚑</button>
               <button class="btn btn-edit"   title="Edit notes / category" onclick="openEditModal('${v.id}')">✎</button>
               <button class="btn btn-open"   title="Watch here"            onclick="openWatchModal('${v.id}')">▶</button>
@@ -1327,6 +1444,72 @@
     save(); renderCatFilters(); render();
     closeEditModal();
     showToast('Saved!', 'success');
+  }
+
+  // ── Favorite Channels ────────────────────────────────────────────────────────
+  function isChannelFaved(name) {
+    return !!name && favChannels.includes(name);
+  }
+
+  function toggleChannelsPanel() {
+    const panel = document.getElementById('channelsPanel');
+    panel.classList.toggle('open');
+    if (panel.classList.contains('open')) renderChannelsPanel();
+  }
+
+  function renderChannelsPanel() {
+    const list = document.getElementById('channelsList');
+    if (favChannels.length === 0) {
+      list.innerHTML = '<div class="channels-empty">No favorite channels yet. Add one above or click ♥ on a video card.</div>';
+      return;
+    }
+    list.innerHTML = '<div class="channels-list">' + favChannels.map(name => {
+      const count = videos.filter(v => v.channelName === name).length;
+      const isActive = activeChannel === name;
+      return `
+        <div class="channel-card ${isActive ? 'active' : ''}" onclick="setChannelFilter('${escHtml(name)}')">
+          <div class="channel-card-info">
+            <div class="channel-card-name">${escHtml(name)}</div>
+            <div class="channel-card-count">${count} video${count !== 1 ? 's' : ''}</div>
+          </div>
+          <button class="channel-card-remove" title="Remove" onclick="event.stopPropagation();removeFavoriteChannel('${escHtml(name)}')">✕</button>
+        </div>`;
+    }).join('') + '</div>';
+  }
+
+  function setChannelFilter(name) {
+    activeChannel = activeChannel === name ? '' : name;
+    renderChannelsPanel();
+    render();
+  }
+
+  function addFavoriteChannel() {
+    const input = document.getElementById('newChannelInput');
+    const name  = input.value.trim();
+    if (!name) return;
+    if (favChannels.includes(name)) { showToast('Already in favorites.', 'error'); return; }
+    favChannels.push(name);
+    input.value = '';
+    save(); renderChannelsPanel(); render();
+    showToast('Channel added!', 'success');
+  }
+
+  function removeFavoriteChannel(name) {
+    favChannels = favChannels.filter(c => c !== name);
+    if (activeChannel === name) activeChannel = '';
+    save(); renderChannelsPanel(); render();
+    showToast('Channel removed.');
+  }
+
+  function toggleFaveFromCard(name) {
+    if (!name) { showToast('This video has no channel name set.', 'error'); return; }
+    if (isChannelFaved(name)) {
+      removeFavoriteChannel(name);
+    } else {
+      favChannels.push(name);
+      save(); renderChannelsPanel(); render();
+      showToast(`${name} added to favorites!`, 'success');
+    }
   }
 
   // ── Category manager modal ────────────────────────────────────────────────────
@@ -1646,6 +1829,10 @@
   // Enter key in new category name
   document.getElementById('newCatName').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); addCategory(); }
+  });
+
+  document.getElementById('newChannelInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); addFavoriteChannel(); }
   });
 
   // ── Init ──────────────────────────────────────────────────────────────────────
