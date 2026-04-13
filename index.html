@@ -543,6 +543,92 @@
     }
     .btn-add-cat:hover { background: #27ae60; }
 
+    /* ── Watch modal ── */
+    .watch-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.92);
+      z-index: 2000;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 14px;
+      padding: 16px;
+    }
+    .watch-overlay.open { display: flex; }
+    .watch-box {
+      width: 100%;
+      max-width: 860px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .watch-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .watch-title {
+      font-size: 0.95rem;
+      font-weight: 600;
+      line-height: 1.3;
+      flex: 1;
+    }
+    .watch-close {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 8px;
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: background 0.2s, color 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .watch-close:hover { background: #7a1010; color: #fff; border-color: transparent; }
+    .watch-player-wrap {
+      width: 100%;
+      aspect-ratio: 16/9;
+      background: #000;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+    .watch-player-wrap iframe { width: 100%; height: 100%; border: none; display: block; }
+    .watch-footer {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .watch-time {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      min-width: 110px;
+      white-space: nowrap;
+    }
+    .watch-progress-bg {
+      flex: 1;
+      height: 6px;
+      background: var(--surface2);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .watch-progress-fill {
+      height: 100%;
+      border-radius: 999px;
+      transition: width 0.5s linear, background 0.3s;
+    }
+    .watch-pct {
+      font-size: 0.8rem;
+      font-weight: 700;
+      min-width: 36px;
+      text-align: right;
+    }
+
     @media (max-width: 520px) {
       .add-form { flex-direction: column; }
       header h1 { font-size: 1.25rem; }
@@ -630,6 +716,26 @@
   </div>
 </div>
 
+<!-- Watch modal -->
+<div class="watch-overlay" id="watchModal">
+  <div class="watch-box">
+    <div class="watch-header">
+      <div class="watch-title" id="watchTitle"></div>
+      <button class="watch-close" onclick="closeWatchModal()">✕ Close &amp; Save</button>
+    </div>
+    <div class="watch-player-wrap">
+      <div id="ytPlayer"></div>
+    </div>
+    <div class="watch-footer">
+      <span class="watch-time" id="watchTime">0:00 / 0:00</span>
+      <div class="watch-progress-bg">
+        <div class="watch-progress-fill" id="watchProgressFill" style="width:0%;background:var(--red)"></div>
+      </div>
+      <span class="watch-pct" id="watchPct" style="color:var(--muted)">0%</span>
+    </div>
+  </div>
+</div>
+
 <!-- Hidden file input for import -->
 <input type="file" id="importFile" accept=".json" style="display:none" />
 
@@ -652,9 +758,11 @@
     try { categories = JSON.parse(localStorage.getItem(CAT_STORAGE))  || []; } catch { categories = []; }
     // Migrate older videos missing fields
     videos.forEach(v => {
-      if (v.notes     === undefined) v.notes    = '';
-      if (v.category  === undefined) v.category = '';
-      if (v.progress  === undefined) v.progress = v.watched ? 100 : 0;
+      if (v.notes           === undefined) v.notes           = '';
+      if (v.category        === undefined) v.category        = '';
+      if (v.progress        === undefined) v.progress        = v.watched ? 100 : 0;
+      if (v.watchedSeconds  === undefined) v.watchedSeconds  = 0;
+      if (v.durationSeconds === undefined) v.durationSeconds = 0;
     });
   }
 
@@ -773,18 +881,19 @@
             </div>
             <div class="card-meta">Added ${formatDate(v.addedAt)}${v.watchedAt ? ' · Watched ' + formatDate(v.watchedAt) : ''}</div>
             <div class="progress-wrap">
-              <div class="progress-bar-bg" title="Click to set progress" onclick="quickProgress(event,'${v.id}')">
+              <div class="progress-bar-bg">
                 <div class="progress-bar-fill" style="width:${v.progress||0}%;background:${progressColor(v.progress||0)}"></div>
               </div>
               <span class="progress-label">${v.progress||0}%</span>
             </div>
+            ${v.durationSeconds ? `<div class="card-meta">${fmtSec(v.watchedSeconds||0)} / ${fmtSec(v.durationSeconds)}</div>` : ''}
             ${v.notes ? `<div class="card-notes">${escHtml(v.notes)}</div>` : ''}
             <div class="card-actions">
               ${v.watched
                 ? `<button class="btn btn-unwatch" onclick="toggleWatched('${v.id}')">Unwatch</button>`
                 : `<button class="btn btn-watch"   onclick="toggleWatched('${v.id}')">Mark Watched</button>`}
               <button class="btn btn-edit"   title="Edit notes / category" onclick="openEditModal('${v.id}')">✎</button>
-              <button class="btn btn-open"   title="Open on YouTube"       onclick="window.open('https://www.youtube.com/watch?v=${v.videoId}','_blank')">▶</button>
+              <button class="btn btn-open"   title="Watch here"            onclick="openWatchModal('${v.id}')">▶</button>
               <button class="btn btn-delete" title="Delete"                onclick="deleteVideo('${v.id}')">✕</button>
             </div>
           </div>
@@ -908,7 +1017,7 @@
     }
 
     const title = await fetchTitle(videoId) || `YouTube Video (${videoId})`;
-    const video = { id: crypto.randomUUID(), videoId, title, watched: false, addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0 };
+    const video = { id: crypto.randomUUID(), videoId, title, watched: false, addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0 };
     videos.unshift(video);
     save();
 
@@ -920,15 +1029,145 @@
     showToast('Video added!', 'success');
   }
 
-  // ── Quick progress (click bar) ────────────────────────────────────────────────
-  function quickProgress(e, id) {
-    const bar = e.currentTarget;
-    const pct = Math.round((e.offsetX / bar.offsetWidth) * 100);
+  // ── Time formatter ────────────────────────────────────────────────────────────
+  function fmtSec(s) {
+    s = Math.floor(s || 0);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+    return `${m}:${String(sec).padStart(2,'0')}`;
+  }
+
+  // ── YouTube IFrame Player ─────────────────────────────────────────────────────
+  let ytPlayer        = null;
+  let watchingId      = null;   // video record id
+  let pollInterval    = null;
+  let ytApiReady      = false;
+  let pendingVideoId  = null;   // videoId waiting for API to load
+
+  // Called by YouTube IFrame API when script loads
+  window.onYouTubeIframeAPIReady = function() {
+    ytApiReady = true;
+    if (pendingVideoId) { _createPlayer(pendingVideoId); pendingVideoId = null; }
+  };
+
+  function _createPlayer(videoId) {
+    // Destroy previous player if any
+    if (ytPlayer) { try { ytPlayer.destroy(); } catch {} ytPlayer = null; }
+    // Reset the container
+    const wrap = document.getElementById('ytPlayer');
+    wrap.innerHTML = '';
+    const div = document.createElement('div');
+    div.id = 'yt-iframe-target';
+    wrap.appendChild(div);
+
+    ytPlayer = new YT.Player('yt-iframe-target', {
+      videoId,
+      playerVars: { autoplay: 1, rel: 0, modestbranding: 1 },
+      events: {
+        onReady(e) {
+          const dur = e.target.getDuration();
+          const v = videos.find(v => v.id === watchingId);
+          if (v && dur > 0) {
+            v.durationSeconds = dur;
+            // Seek to where they left off (if > 5 s from end)
+            const resume = v.watchedSeconds || 0;
+            if (resume > 5 && resume < dur - 5) e.target.seekTo(resume, true);
+            save();
+          }
+        },
+        onStateChange(e) {
+          if (e.data === YT.PlayerState.PLAYING) {
+            startPoll();
+          } else {
+            stopPoll();
+            saveWatchProgress();
+            if (e.data === YT.PlayerState.ENDED) {
+              markWatchComplete();
+            }
+          }
+        }
+      }
+    });
+  }
+
+  function startPoll() {
+    stopPoll();
+    pollInterval = setInterval(saveWatchProgress, 5000);
+  }
+
+  function stopPoll() {
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+  }
+
+  function saveWatchProgress() {
+    if (!ytPlayer || !watchingId) return;
+    let cur, dur;
+    try { cur = ytPlayer.getCurrentTime(); dur = ytPlayer.getDuration(); } catch { return; }
+    if (!dur || dur <= 0) return;
+
+    const v = videos.find(v => v.id === watchingId);
+    if (!v) return;
+
+    v.durationSeconds = dur;
+    v.watchedSeconds  = Math.max(v.watchedSeconds || 0, cur);
+    v.progress        = Math.min(100, Math.round((v.watchedSeconds / dur) * 100));
+    save();
+
+    // Update watch modal footer
+    document.getElementById('watchTime').textContent    = `${fmtSec(cur)} / ${fmtSec(dur)}`;
+    document.getElementById('watchProgressFill').style.width      = v.progress + '%';
+    document.getElementById('watchProgressFill').style.background = progressColor(v.progress);
+    document.getElementById('watchPct').textContent     = v.progress + '%';
+    document.getElementById('watchPct').style.color     = progressColor(v.progress);
+  }
+
+  function markWatchComplete() {
+    const v = videos.find(v => v.id === watchingId);
+    if (!v || v.watched) return;
+    v.watched = true; v.watchedAt = Date.now(); v.progress = 100;
+    save(); render();
+    showToast('Video finished — marked as watched!', 'success');
+  }
+
+  function openWatchModal(id) {
     const v = videos.find(v => v.id === id);
     if (!v) return;
-    v.progress = pct;
-    if (pct === 100 && !v.watched) { v.watched = true; v.watchedAt = Date.now(); }
-    save(); render();
+    watchingId = id;
+
+    document.getElementById('watchTitle').textContent = v.title;
+    const pct = v.progress || 0;
+    document.getElementById('watchProgressFill').style.width      = pct + '%';
+    document.getElementById('watchProgressFill').style.background = progressColor(pct);
+    document.getElementById('watchPct').textContent     = pct + '%';
+    document.getElementById('watchTime').textContent    =
+      v.durationSeconds ? `${fmtSec(v.watchedSeconds||0)} / ${fmtSec(v.durationSeconds)}` : '0:00 / 0:00';
+
+    document.getElementById('watchModal').classList.add('open');
+
+    if (ytApiReady) {
+      _createPlayer(v.videoId);
+    } else {
+      pendingVideoId = v.videoId;
+      // Load the API if not started yet
+      if (!document.getElementById('yt-api-script')) {
+        const s = document.createElement('script');
+        s.id  = 'yt-api-script';
+        s.src = 'https://www.youtube.com/iframe_api';
+        document.head.appendChild(s);
+      }
+    }
+  }
+
+  function closeWatchModal() {
+    stopPoll();
+    saveWatchProgress();
+    if (ytPlayer) { try { ytPlayer.stopVideo(); ytPlayer.destroy(); } catch {} ytPlayer = null; }
+    document.getElementById('ytPlayer').innerHTML = '';
+    document.getElementById('watchModal').classList.remove('open');
+    render();
+    watchingId = null;
   }
 
   // ── Export ────────────────────────────────────────────────────────────────────
@@ -968,9 +1207,11 @@
         importedVideos.forEach(v => {
           if (!v.id || !v.videoId || !v.title) return;
           if (!videos.some(x => x.videoId === v.videoId)) {
-            if (v.notes    === undefined) v.notes    = '';
-            if (v.category === undefined) v.category = '';
-            if (v.progress === undefined) v.progress = v.watched ? 100 : 0;
+            if (v.notes           === undefined) v.notes           = '';
+            if (v.category        === undefined) v.category        = '';
+            if (v.progress        === undefined) v.progress        = v.watched ? 100 : 0;
+            if (v.watchedSeconds  === undefined) v.watchedSeconds  = 0;
+            if (v.durationSeconds === undefined) v.durationSeconds = 0;
             videos.push(v); addedV++;
           }
         });
@@ -1012,6 +1253,13 @@
   });
   document.getElementById('catModal').addEventListener('click', e => {
     if (e.target === e.currentTarget) closeCatModal();
+  });
+
+  // Escape key closes watch modal
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && document.getElementById('watchModal').classList.contains('open')) {
+      closeWatchModal();
+    }
   });
 
   // Enter key in new category name
