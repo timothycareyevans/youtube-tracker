@@ -635,6 +635,131 @@
       .header-actions { gap: 6px; }
       .header-btn { padding: 7px 10px; font-size: 0.78rem; }
     }
+
+    /* ── Pomodoro widget ── */
+    .pomo-widget {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .pomo-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+      width: 220px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+      transition: opacity 0.2s;
+    }
+    .pomo-card.collapsed { display: none; }
+
+    .pomo-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .pomo-phase {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .pomo-phase.focus      { color: var(--red); }
+    .pomo-phase.shortbreak { color: var(--green); }
+    .pomo-phase.longbreak  { color: #58a6ff; }
+
+    .pomo-dots {
+      display: flex;
+      gap: 5px;
+    }
+    .pomo-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--border);
+      transition: background 0.2s;
+    }
+    .pomo-dot.done { background: var(--red); }
+
+    .pomo-time {
+      font-size: 2.4rem;
+      font-weight: 700;
+      letter-spacing: -1px;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .pomo-ring-wrap {
+      display: flex;
+      justify-content: center;
+    }
+    .pomo-ring {
+      width: 90px; height: 90px;
+      position: relative;
+    }
+    .pomo-ring svg {
+      width: 100%; height: 100%;
+      transform: rotate(-90deg);
+    }
+    .pomo-ring-bg   { fill: none; stroke: var(--surface2); stroke-width: 5; }
+    .pomo-ring-fill { fill: none; stroke-width: 5; stroke-linecap: round; transition: stroke-dashoffset 1s linear, stroke 0.3s; }
+    .pomo-ring-time {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pomo-controls {
+      display: flex;
+      gap: 6px;
+    }
+    .pomo-btn {
+      flex: 1;
+      border: none;
+      border-radius: 8px;
+      padding: 8px 0;
+      font-size: 0.8rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .pomo-btn-start  { background: var(--red);     color: #fff; }
+    .pomo-btn-start:hover  { background: var(--red-dim); }
+    .pomo-btn-start.running  { background: #444; color: var(--text); }
+    .pomo-btn-start.running:hover { background: #555; }
+    .pomo-btn-reset  { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); flex: 0; padding: 8px 12px; }
+    .pomo-btn-reset:hover  { background: var(--surface3); color: var(--text); }
+
+    .pomo-toggle {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--muted);
+      border-radius: 999px;
+      padding: 6px 14px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+    .pomo-toggle:hover { background: var(--surface2); color: var(--text); }
+    .pomo-toggle.active { background: var(--red); color: #fff; border-color: var(--red); }
   </style>
 </head>
 <body>
@@ -1287,6 +1412,141 @@
   load();
   renderCatFilters();
   render();
+
+  // ── Pomodoro ──────────────────────────────────────────────────────────────────
+  const POMO_PHASES = [
+    { key: 'focus',      label: 'Focus',       mins: 25 },
+    { key: 'shortbreak', label: 'Short Break', mins: 5  },
+    { key: 'focus',      label: 'Focus',       mins: 25 },
+    { key: 'shortbreak', label: 'Short Break', mins: 5  },
+    { key: 'focus',      label: 'Focus',       mins: 25 },
+    { key: 'shortbreak', label: 'Short Break', mins: 5  },
+    { key: 'focus',      label: 'Focus',       mins: 25 },
+    { key: 'longbreak',  label: 'Long Break',  mins: 15 },
+  ];
+
+  let pomoPhaseIdx  = 0;
+  let pomoSecsLeft  = POMO_PHASES[0].mins * 60;
+  let pomoRunning   = false;
+  let pomoInterval  = null;
+  let pomoPomos     = 0;   // completed focus sessions this cycle
+  const CIRCUM      = 2 * Math.PI * 40;  // r=40
+
+  function pomoCurrentPhase() { return POMO_PHASES[pomoPhaseIdx]; }
+
+  function pomoRender() {
+    const phase    = pomoCurrentPhase();
+    const total    = phase.mins * 60;
+    const mins     = String(Math.floor(pomoSecsLeft / 60)).padStart(2, '0');
+    const secs     = String(pomoSecsLeft % 60).padStart(2, '0');
+    const frac     = pomoSecsLeft / total;
+    const offset   = CIRCUM * (1 - frac);
+    const color    = phase.key === 'focus' ? '#ff0000' : phase.key === 'shortbreak' ? '#2ecc71' : '#58a6ff';
+
+    document.getElementById('pomoPhase').textContent    = phase.label;
+    document.getElementById('pomoPhase').className      = 'pomo-phase ' + phase.key;
+    document.getElementById('pomoRingFill').style.strokeDashoffset = offset;
+    document.getElementById('pomoRingFill').style.stroke = color;
+    document.getElementById('pomoRingTime').textContent  = `${mins}:${secs}`;
+
+    const startBtn = document.getElementById('pomoStartBtn');
+    startBtn.textContent = pomoRunning ? 'Pause' : (pomoSecsLeft < total ? 'Resume' : 'Start');
+    startBtn.className   = 'pomo-btn pomo-btn-start' + (pomoRunning ? ' running' : '');
+
+    // Dots — one per focus session in the cycle (4 total)
+    document.querySelectorAll('.pomo-dot').forEach((dot, i) => {
+      dot.classList.toggle('done', i < pomoPomos);
+    });
+
+    document.title = pomoRunning ? `${mins}:${secs} — YouTube Tracker` : 'YouTube Tracker';
+  }
+
+  function pomoTick() {
+    if (pomoSecsLeft <= 0) {
+      pomoAdvance();
+      return;
+    }
+    pomoSecsLeft--;
+    pomoRender();
+  }
+
+  function pomoAdvance() {
+    const phase = pomoCurrentPhase();
+    if (phase.key === 'focus') pomoPomos = Math.min(pomoPomos + 1, 4);
+    clearInterval(pomoInterval);
+    pomoRunning  = false;
+    pomoPhaseIdx = (pomoPhaseIdx + 1) % POMO_PHASES.length;
+    if (pomoPhaseIdx === 0) pomoPomos = 0;   // full cycle done, reset dots
+    pomoSecsLeft = POMO_PHASES[pomoPhaseIdx].mins * 60;
+    pomoRender();
+    const next = POMO_PHASES[pomoPhaseIdx];
+    showToast(`${phase.label} done! Up next: ${next.label} (${next.mins} min)`, 'success');
+    // Browser notification if permitted
+    if (Notification.permission === 'granted') {
+      new Notification('YouTube Tracker', { body: `${phase.label} done! Time for ${next.label}.`, icon: '' });
+    }
+  }
+
+  function pomoToggleRun() {
+    if (pomoRunning) {
+      clearInterval(pomoInterval);
+      pomoRunning = false;
+    } else {
+      Notification.requestPermission();
+      pomoRunning  = true;
+      pomoInterval = setInterval(pomoTick, 1000);
+    }
+    pomoRender();
+  }
+
+  function pomoReset() {
+    clearInterval(pomoInterval);
+    pomoRunning  = false;
+    pomoSecsLeft = pomoCurrentPhase().mins * 60;
+    pomoRender();
+  }
+
+  function pomoToggleWidget() {
+    const card    = document.getElementById('pomoCard');
+    const togBtn  = document.getElementById('pomoToggleBtn');
+    const hidden  = card.classList.toggle('collapsed');
+    togBtn.textContent = hidden ? '🍅 Pomodoro' : '✕ Pomodoro';
+    togBtn.classList.toggle('active', !hidden);
+  }
+
+  // Init ring
+  document.getElementById('pomoRingFill').style.strokeDasharray = CIRCUM;
+  document.getElementById('pomoRingFill').style.strokeDashoffset = 0;
+  pomoRender();
 </script>
+
+<!-- Pomodoro widget -->
+<div class="pomo-widget">
+  <div class="pomo-card collapsed" id="pomoCard">
+    <div class="pomo-header">
+      <span class="pomo-phase focus" id="pomoPhase">Focus</span>
+      <div class="pomo-dots">
+        <div class="pomo-dot" id="pomoDot0"></div>
+        <div class="pomo-dot" id="pomoDot1"></div>
+        <div class="pomo-dot" id="pomoDot2"></div>
+        <div class="pomo-dot" id="pomoDot3"></div>
+      </div>
+    </div>
+    <div class="pomo-ring-wrap">
+      <div class="pomo-ring">
+        <svg viewBox="0 0 90 90">
+          <circle class="pomo-ring-bg"   cx="45" cy="45" r="40"/>
+          <circle class="pomo-ring-fill" cx="45" cy="45" r="40" id="pomoRingFill"/>
+        </svg>
+        <div class="pomo-ring-time" id="pomoRingTime">25:00</div>
+      </div>
+    </div>
+    <div class="pomo-controls">
+      <button class="pomo-btn pomo-btn-start" id="pomoStartBtn" onclick="pomoToggleRun()">Start</button>
+      <button class="pomo-btn pomo-btn-reset"                   onclick="pomoReset()">↺</button>
+    </div>
+  </div>
+  <button class="pomo-toggle" id="pomoToggleBtn" onclick="pomoToggleWidget()">🍅 Pomodoro</button>
+</div>
 </body>
 </html>
