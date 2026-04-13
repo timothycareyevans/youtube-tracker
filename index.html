@@ -658,7 +658,7 @@
 </form>
 
 <div class="tabs">
-  <button class="tab active" data-tab="towatch">To Watch <span class="count" id="countToWatch">0</span></button>
+  <button class="tab active" data-tab="towatch">In Progress <span class="count" id="countToWatch">0</span></button>
   <button class="tab" data-tab="watched">Watched <span class="count" id="countWatched">0</span></button>
 </div>
 
@@ -860,7 +860,7 @@
     document.getElementById('countWatched').textContent = videos.filter(v => v.watched).length;
 
     if (filtered.length === 0) {
-      const label = activeTab === 'towatch' ? 'No videos to watch yet.' : 'No watched videos yet.';
+      const label = activeTab === 'towatch' ? 'No videos in progress yet.' : 'No watched videos yet.';
       const icon  = activeTab === 'towatch' ? '📋' : '✅';
       grid.innerHTML = `<div class="empty"><p>${icon}</p><p>${label}</p></div>`;
       return;
