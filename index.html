@@ -460,6 +460,8 @@
     }
     .btn-watch { background: var(--green); color: #fff; }
     .btn-watch:hover { background: #27ae60; }
+    .btn-mark-watched { background: #111; color: #fff; border: 1px solid #333; }
+    .btn-mark-watched:hover { background: #000; border-color: #555; }
     .btn-unwatch { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
     .btn-unwatch:hover { background: var(--surface3); color: var(--text); }
     .btn-edit { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); flex: 0; padding: 7px 10px; }
@@ -1273,7 +1275,7 @@
               ${v.status === 'upcoming'
                 ? `<button class="btn btn-watch" onclick="setStatus('${v.id}','inprogress')">Start</button>`
                 : v.status === 'inprogress'
-                  ? `<button class="btn btn-watch" onclick="setStatus('${v.id}','watched')">Mark Watched</button>`
+                  ? `<button class="btn btn-mark-watched" onclick="setStatus('${v.id}','watched')">Mark Watched</button>`
                   : `<button class="btn btn-unwatch" onclick="setStatus('${v.id}','inprogress')">Unwatch</button>`}
               <button class="btn btn-heart ${isChannelFaved(v.channelName) ? 'faved' : ''}" title="${isChannelFaved(v.channelName) ? 'Remove from Favorite Channels' : 'Add to Favorite Channels'}" onclick="toggleFaveFromCard('${escHtml(v.channelName)}')">♥</button>
               <button class="btn btn-flag ${v.priority ? 'flagged' : ''}" title="${v.priority ? 'Remove priority' : 'Flag as priority'}" onclick="togglePriority('${v.id}')">⚑</button>
