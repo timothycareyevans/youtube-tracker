@@ -376,6 +376,28 @@
     .btn-flag:hover { background: var(--surface2); color: #f39c12; border-color: #f39c12; }
     .btn-flag.flagged { background: #2a1f00; color: #f39c12; border-color: #f39c12; }
 
+    .duration-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.73rem;
+      color: var(--muted);
+    }
+    .duration-input {
+      background: transparent;
+      border: none;
+      border-bottom: 1px dashed var(--border);
+      color: var(--text);
+      font-size: 0.73rem;
+      font-family: inherit;
+      width: 62px;
+      outline: none;
+      padding: 1px 2px;
+      transition: border-color 0.2s;
+    }
+    .duration-input:focus { border-bottom-color: var(--red); color: var(--text); }
+    .duration-input::placeholder { color: var(--muted); }
+
     .card[draggable] { cursor: grab; }
     .card[draggable]:active { cursor: grabbing; }
     .card.dragging { opacity: 0.35; transform: scale(0.97); }
@@ -1032,7 +1054,21 @@
               </div>
               <span class="progress-label">${v.progress||0}%</span>
             </div>
-            ${v.durationSeconds ? `<div class="card-meta">${fmtSec(v.watchedSeconds||0)} / ${fmtSec(v.durationSeconds)}</div>` : ''}
+            <div class="duration-row">
+              <span>${fmtSec(v.watchedSeconds||0)} /</span>
+              <input
+                class="duration-input"
+                type="text"
+                value="${v.durationSeconds ? fmtSec(v.durationSeconds) : ''}"
+                placeholder="0:00:00"
+                title="Set total duration (e.g. 1:23:45 or 45:00)"
+                data-id="${escHtml(v.id)}"
+                onchange="saveDuration(this)"
+                onkeydown="if(event.key==='Enter')this.blur()"
+                draggable="false"
+                onclick="event.stopPropagation()"
+              />
+            </div>
             ${v.notes ? `<div class="card-notes">${escHtml(v.notes)}</div>` : ''}
             <div class="card-actions">
               ${v.status === 'upcoming'
@@ -1049,6 +1085,33 @@
           </div>
         </div>`;
     }).join('');
+  }
+
+  // ── Duration input ────────────────────────────────────────────────────────────
+  function parseDuration(str) {
+    str = str.trim();
+    if (!str) return 0;
+    const parts = str.split(':').map(Number);
+    if (parts.some(isNaN)) return null;
+    if (parts.length === 3) return parts[0] * 3600 + parts[1] * 60 + parts[2];
+    if (parts.length === 2) return parts[0] * 60 + parts[1];
+    if (parts.length === 1) return parts[0];
+    return null;
+  }
+
+  function saveDuration(input) {
+    const id  = input.dataset.id;
+    const sec = parseDuration(input.value);
+    if (sec === null) { showToast('Invalid format — use M:SS or H:MM:SS', 'error'); input.value = ''; return; }
+    const v = videos.find(v => v.id === id);
+    if (!v) return;
+    v.durationSeconds = sec;
+    if (sec > 0 && v.watchedSeconds > 0) {
+      v.progress = Math.min(100, Math.round((v.watchedSeconds / sec) * 100));
+    }
+    // Normalise display value
+    input.value = sec > 0 ? fmtSec(sec) : '';
+    save(); render();
   }
 
   // ── Drag to sort ─────────────────────────────────────────────────────────────
