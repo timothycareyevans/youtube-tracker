@@ -1273,7 +1273,7 @@
             ${v.notes ? `<div class="card-notes">${escHtml(v.notes)}</div>` : ''}
             <div class="card-actions">
               ${v.status === 'upcoming'
-                ? `<button class="btn btn-watch" onclick="setStatus('${v.id}','inprogress')">Start</button>`
+                ? `<button class="btn btn-mark-watched" onclick="setStatus('${v.id}','inprogress')">Start</button>`
                 : v.status === 'inprogress'
                   ? `<button class="btn btn-mark-watched" onclick="setStatus('${v.id}','watched')">Mark Watched</button>`
                   : `<button class="btn btn-unwatch" onclick="setStatus('${v.id}','inprogress')">Unwatch</button>`}
