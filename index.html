@@ -1055,7 +1055,19 @@
               <span class="progress-label">${v.progress||0}%</span>
             </div>
             <div class="duration-row">
-              <span>${fmtSec(v.watchedSeconds||0)} /</span>
+              <input
+                class="duration-input"
+                type="text"
+                value="${v.watchedSeconds ? fmtSec(v.watchedSeconds) : ''}"
+                placeholder="0:00"
+                title="Set time watched (e.g. 14:23)"
+                data-id="${escHtml(v.id)}"
+                onchange="saveWatched(this)"
+                onkeydown="if(event.key==='Enter')this.blur()"
+                draggable="false"
+                onclick="event.stopPropagation()"
+              />
+              <span>/</span>
               <input
                 class="duration-input"
                 type="text"
@@ -1097,6 +1109,20 @@
     if (parts.length === 2) return parts[0] * 60 + parts[1];
     if (parts.length === 1) return parts[0];
     return null;
+  }
+
+  function saveWatched(input) {
+    const id  = input.dataset.id;
+    const sec = parseDuration(input.value);
+    if (sec === null) { showToast('Invalid format — use M:SS or H:MM:SS', 'error'); input.value = ''; return; }
+    const v = videos.find(v => v.id === id);
+    if (!v) return;
+    v.watchedSeconds = sec;
+    if (v.durationSeconds > 0) {
+      v.progress = Math.min(100, Math.round((sec / v.durationSeconds) * 100));
+    }
+    input.value = sec > 0 ? fmtSec(sec) : '';
+    save(); render();
   }
 
   function saveDuration(input) {
