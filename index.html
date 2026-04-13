@@ -371,6 +371,9 @@
     .btn-open:hover { background: var(--red-dim); }
     .btn-delete { background: transparent; color: var(--muted); border: 1px solid var(--border); flex: 0; padding: 7px 10px; }
     .btn-delete:hover { background: #7a1010; color: #fff; border-color: transparent; }
+    .btn-flag { background: transparent; color: var(--muted); border: 1px solid var(--border); flex: 0; padding: 7px 10px; transition: background 0.2s, color 0.2s, border-color 0.2s; }
+    .btn-flag:hover { background: var(--surface2); color: #f39c12; border-color: #f39c12; }
+    .btn-flag.flagged { background: #2a1f00; color: #f39c12; border-color: #f39c12; }
 
     /* ── Loading skeleton ── */
     .loading-card {
@@ -895,6 +898,7 @@
         else if (v.progress > 0) v.status = 'inprogress';
         else                   v.status = 'upcoming';
       }
+      if (v.priority === undefined) v.priority = false;
     });
   }
 
@@ -981,12 +985,14 @@
   // ── Main render ───────────────────────────────────────────────────────────────
   function render() {
     const grid = document.getElementById('grid');
-    const filtered = videos.filter(v => {
-      const matchTab    = v.status === activeTab;
-      const matchSearch = !searchQuery || v.title.toLowerCase().includes(searchQuery);
-      const matchCat    = !activeCat  || v.category === activeCat;
-      return matchTab && matchSearch && matchCat;
-    });
+    const filtered = videos
+      .filter(v => {
+        const matchTab    = v.status === activeTab;
+        const matchSearch = !searchQuery || v.title.toLowerCase().includes(searchQuery);
+        const matchCat    = !activeCat  || v.category === activeCat;
+        return matchTab && matchSearch && matchCat;
+      })
+      .sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0));
 
     document.getElementById('countUpcoming').textContent   = videos.filter(v => v.status === 'upcoming').length;
     document.getElementById('countInProgress').textContent = videos.filter(v => v.status === 'inprogress').length;
@@ -1008,6 +1014,7 @@
           <div class="thumb-wrap">
             <img src="${thumbUrl(v.videoId)}" alt="${escHtml(v.title)}" loading="lazy" />
             ${v.watched ? '<span class="watched-badge">WATCHED</span>' : ''}
+            ${v.priority ? '<span class="watched-badge" style="background:#f39c12;right:auto;left:8px;">⚑ PRIORITY</span>' : ''}
             ${cat ? `<span class="cat-badge" style="background:${cat.color}">${escHtml(cat.name)}</span>` : ''}
           </div>
           <div class="card-body">
@@ -1029,6 +1036,7 @@
                 : v.status === 'inprogress'
                   ? `<button class="btn btn-watch" onclick="setStatus('${v.id}','watched')">Mark Watched</button>`
                   : `<button class="btn btn-unwatch" onclick="setStatus('${v.id}','inprogress')">Unwatch</button>`}
+              <button class="btn btn-flag ${v.priority ? 'flagged' : ''}" title="${v.priority ? 'Remove priority' : 'Flag as priority'}" onclick="togglePriority('${v.id}')">⚑</button>
               <button class="btn btn-edit"   title="Edit notes / category" onclick="openEditModal('${v.id}')">✎</button>
               <button class="btn btn-open"   title="Watch here"            onclick="openWatchModal('${v.id}')">▶</button>
               <button class="btn btn-delete" title="Delete"                onclick="deleteVideo('${v.id}')">✕</button>
@@ -1050,6 +1058,14 @@
     save(); render();
     const msgs = { upcoming: 'Moved to Upcoming.', inprogress: 'Moved to In Progress.', watched: 'Marked as watched!' };
     showToast(msgs[status], 'success');
+  }
+
+  function togglePriority(id) {
+    const v = videos.find(v => v.id === id);
+    if (!v) return;
+    v.priority = !v.priority;
+    save(); render();
+    showToast(v.priority ? 'Flagged as priority.' : 'Priority removed.', v.priority ? 'success' : '');
   }
 
   function deleteVideo(id) {
@@ -1157,7 +1173,7 @@
     }
 
     const title = await fetchTitle(videoId) || `YouTube Video (${videoId})`;
-    const video = { id: crypto.randomUUID(), videoId, title, watched: false, status: 'upcoming', addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0 };
+    const video = { id: crypto.randomUUID(), videoId, title, watched: false, status: 'upcoming', addedAt: Date.now(), watchedAt: null, notes: '', category: '', progress: 0, watchedSeconds: 0, durationSeconds: 0, priority: false };
     videos.unshift(video);
     save();
 
@@ -1353,6 +1369,7 @@
             if (v.watchedSeconds  === undefined) v.watchedSeconds  = 0;
             if (v.durationSeconds === undefined) v.durationSeconds = 0;
             if (v.status          === undefined) v.status          = v.watched ? 'watched' : (v.progress > 0 ? 'inprogress' : 'upcoming');
+            if (v.priority        === undefined) v.priority        = false;
             videos.push(v); addedV++;
           }
         });
