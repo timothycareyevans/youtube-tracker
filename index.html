@@ -1075,7 +1075,20 @@
               <a href="https://www.youtube.com/watch?v=${v.videoId}" target="_blank" rel="noopener">${escHtml(v.title)}</a>
             </div>
             <div class="channel-row">
-              ${v.channelName ? `<span class="channel-name">${escHtml(v.channelName)}</span><span>·</span>` : ''}
+              <input
+                class="published-input"
+                type="text"
+                value="${escHtml(v.channelName)}"
+                placeholder="Channel name"
+                title="Edit channel name"
+                data-id="${escHtml(v.id)}"
+                onchange="saveChannelName(this)"
+                onkeydown="if(event.key==='Enter')this.blur()"
+                draggable="false"
+                onclick="event.stopPropagation()"
+                style="color:#aaa;font-weight:600;width:110px;"
+              />
+              <span>·</span>
               <input
                 class="published-input"
                 type="text"
@@ -1151,6 +1164,13 @@
     if (parts.length === 2) return parts[0] * 60 + parts[1];
     if (parts.length === 1) return parts[0];
     return null;
+  }
+
+  function saveChannelName(input) {
+    const v = videos.find(v => v.id === input.dataset.id);
+    if (!v) return;
+    v.channelName = input.value.trim();
+    save();
   }
 
   function savePublishedAt(input) {
