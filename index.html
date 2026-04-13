@@ -375,6 +375,11 @@
     .btn-flag:hover { background: var(--surface2); color: #f39c12; border-color: #f39c12; }
     .btn-flag.flagged { background: #2a1f00; color: #f39c12; border-color: #f39c12; }
 
+    .card[draggable] { cursor: grab; }
+    .card[draggable]:active { cursor: grabbing; }
+    .card.dragging { opacity: 0.35; transform: scale(0.97); }
+    .card.drag-over { border-color: var(--red); box-shadow: 0 0 0 2px var(--red); transform: translateY(-2px); }
+
     /* ── Loading skeleton ── */
     .loading-card {
       background: var(--surface);
@@ -985,14 +990,12 @@
   // ── Main render ───────────────────────────────────────────────────────────────
   function render() {
     const grid = document.getElementById('grid');
-    const filtered = videos
-      .filter(v => {
-        const matchTab    = v.status === activeTab;
-        const matchSearch = !searchQuery || v.title.toLowerCase().includes(searchQuery);
-        const matchCat    = !activeCat  || v.category === activeCat;
-        return matchTab && matchSearch && matchCat;
-      })
-      .sort((a, b) => (b.priority ? 1 : 0) - (a.priority ? 1 : 0));
+    const filtered = videos.filter(v => {
+      const matchTab    = v.status === activeTab;
+      const matchSearch = !searchQuery || v.title.toLowerCase().includes(searchQuery);
+      const matchCat    = !activeCat  || v.category === activeCat;
+      return matchTab && matchSearch && matchCat;
+    });
 
     document.getElementById('countUpcoming').textContent   = videos.filter(v => v.status === 'upcoming').length;
     document.getElementById('countInProgress').textContent = videos.filter(v => v.status === 'inprogress').length;
@@ -1010,7 +1013,7 @@
     grid.innerHTML = filtered.map(v => {
       const cat = getCat(v.category);
       return `
-        <div class="card ${v.watched ? 'watched' : ''}" data-id="${escHtml(v.id)}">
+        <div class="card ${v.watched ? 'watched' : ''}" data-id="${escHtml(v.id)}" draggable="true">
           <div class="thumb-wrap">
             <img src="${thumbUrl(v.videoId)}" alt="${escHtml(v.title)}" loading="lazy" />
             ${v.watched ? '<span class="watched-badge">WATCHED</span>' : ''}
@@ -1046,6 +1049,55 @@
         </div>`;
     }).join('');
   }
+
+  // ── Drag to sort ─────────────────────────────────────────────────────────────
+  let dragSrcId = null;
+
+  document.getElementById('grid').addEventListener('dragstart', e => {
+    const card = e.target.closest('.card');
+    if (!card) return;
+    dragSrcId = card.dataset.id;
+    setTimeout(() => card.classList.add('dragging'), 0);
+    e.dataTransfer.effectAllowed = 'move';
+  });
+
+  document.getElementById('grid').addEventListener('dragend', e => {
+    const card = e.target.closest('.card');
+    if (card) card.classList.remove('dragging');
+    document.querySelectorAll('.card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    dragSrcId = null;
+  });
+
+  document.getElementById('grid').addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const card = e.target.closest('.card');
+    if (!card || card.dataset.id === dragSrcId) return;
+    document.querySelectorAll('.card.drag-over').forEach(c => c.classList.remove('drag-over'));
+    card.classList.add('drag-over');
+  });
+
+  document.getElementById('grid').addEventListener('dragleave', e => {
+    const card = e.target.closest('.card');
+    if (card) card.classList.remove('drag-over');
+  });
+
+  document.getElementById('grid').addEventListener('drop', e => {
+    e.preventDefault();
+    const targetCard = e.target.closest('.card');
+    if (!targetCard || !dragSrcId || targetCard.dataset.id === dragSrcId) return;
+    targetCard.classList.remove('drag-over');
+
+    const srcIdx = videos.findIndex(v => v.id === dragSrcId);
+    const tgtIdx = videos.findIndex(v => v.id === targetCard.dataset.id);
+    if (srcIdx === -1 || tgtIdx === -1) return;
+
+    // Move src to target position
+    const [item] = videos.splice(srcIdx, 1);
+    videos.splice(tgtIdx, 0, item);
+    save();
+    render();
+  });
 
   // ── Actions ───────────────────────────────────────────────────────────────────
   function setStatus(id, status) {
